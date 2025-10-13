@@ -89,19 +89,28 @@ def list_serial_ports():
         print("No serial ports found.")
         return
     
-    # Try to identify likely micro:bit devices
+    # Try to identify likely micro:bit devices (v1 and v2)
     microbit_ports = []
     for port in ports:
         description = port.description.lower()
         device = port.device.lower()
         
-        # Check for micro:bit specific identifiers
-        if any(keyword in description for keyword in 
-               ['microbit', 'micro:bit', 'daplink', 'mbed']):
+        # Check for micro:bit specific identifiers (updated for both v1 and v2)
+        microbit_keywords = [
+            'microbit', 'micro:bit', 'daplink', 'mbed',
+            'bbc microbit', 'microbit v2', 'cmsis-dap',  # v2 specific
+            'arm mbed', 'pyocd'  # Additional v2 identifiers
+        ]
+        
+        if any(keyword in description for keyword in microbit_keywords):
             microbit_ports.append(port)
         # Also check for common USB serial patterns that micro:bit uses
         elif 'usb' in device and 'modem' in device:
             microbit_ports.append(port)
+        # Check hardware IDs for micro:bit v2 (VID:PID = 0D28:0204)
+        elif hasattr(port, 'vid') and hasattr(port, 'pid'):
+            if port.vid == 0x0D28 and port.pid == 0x0204:  # micro:bit v2
+                microbit_ports.append(port)
     
     print("Available Serial Ports:")
     print("=" * 50)
@@ -109,7 +118,17 @@ def list_serial_ports():
     if microbit_ports:
         print("\nLikely micro:bit devices:")
         for port in microbit_ports:
-            print(f"  {port.device} - {port.description}")
+            # Detect version if possible
+            version_hint = ""
+            if hasattr(port, 'vid') and hasattr(port, 'pid'):
+                if port.vid == 0x0D28 and port.pid == 0x0204:
+                    version_hint = " (micro:bit v2)"
+                elif port.vid == 0x0D28:  # Same vendor, different PID might be v1
+                    version_hint = " (micro:bit v1)"
+            elif 'v2' in port.description.lower():
+                version_hint = " (likely v2)"
+            
+            print(f"  {port.device} - {port.description}{version_hint}")
             if port.hwid:
                 print(f"    Hardware ID: {port.hwid}")
     
@@ -125,6 +144,8 @@ def list_serial_ports():
         print("  - Connected via USB")
         print("  - Powered on")
         print("  - Has the correct firmware flashed")
+        print("  - If using micro:bit v2, try different USB cables or ports")
+        print("  - On some systems, micro:bit v2 may appear with different descriptors")
 
 
 def parse_arguments():
