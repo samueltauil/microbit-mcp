@@ -1,6 +1,6 @@
 # microbit-mcp
 
-An MCP (Model Context Protocol) server for the micro:bit that enables LLMs to interact with micro:bit devices.
+An MCP (Model Context Protocol) server for the micro:bit that enables LLMs to interact with micro:bit devices. **Supports both micro:bit v1 and v2 boards.**
 
 ## Features
 
@@ -12,10 +12,19 @@ An MCP (Model Context Protocol) server for the micro:bit that enables LLMs to in
 
 ## Setup
 
-1. Flash the `src/microbit/main.py` program to your micro:bit
+1. Flash the `src/microbit/main.py` program to your micro:bit (works with both v1 and v2)
 2. Connect the micro:bit via USB
 3. Run the MCP server: `uv run microbit-mcp`
 4. Configure your MCP client to connect to this server
+
+### micro:bit Version Support
+
+This MCP server supports both micro:bit v1 and v2 boards:
+
+- **micro:bit v1**: Uses UART-based serial communication
+- **micro:bit v2**: Uses stdin-based serial communication with enhanced port detection
+
+The firmware automatically detects the micro:bit version and adapts its communication method accordingly.
 
 ### Command Line Options
 
@@ -50,7 +59,7 @@ This will show all available serial ports and highlight likely micro:bit devices
 Available Serial Ports:
 
 Likely micro:bit devices:
-  /dev/cu.usbmodem2114202 - "BBC micro:bit CMSIS-DAP"
+  /dev/cu.usbmodem2114202 - "BBC micro:bit CMSIS-DAP" (micro:bit v2)
     Hardware ID: USB VID:PID=0D28:0204
 
 All serial ports (3 found):

@@ -1,6 +1,6 @@
 # Micro:bit Firmware for MCP Server
 
-This directory contains the firmware that needs to be flashed to your micro:bit device to enable communication with the MCP server.
+This directory contains the firmware that needs to be flashed to your micro:bit device to enable communication with the MCP server. **The firmware supports both micro:bit v1 and v2 boards automatically.**
 
 ## Setup Instructions
 
@@ -11,11 +11,20 @@ This directory contains the firmware that needs to be flashed to your micro:bit 
 
 2. **Connect via USB**: Connect your micro:bit to your computer using a USB cable
 
-3. **Verify connection**: The micro:bit should show a happy face on startup, then clear the display and show "ready" status
+3. **Verify connection**: The micro:bit should show a happy face on startup, then clear the display and send a ready status
+
+## Version Compatibility
+
+The firmware automatically detects whether it's running on micro:bit v1 or v2:
+
+- **micro:bit v1**: Uses UART interface for serial communication
+- **micro:bit v2**: Uses stdin interface for serial communication
+
+The ready status message will indicate the detected version (e.g., `STATUS|ready:v2|timestamp`).
 
 ## Communication Protocol
 
-The micro:bit firmware implements a simple text-based protocol over serial (UART) communication at 115200 baud.
+The micro:bit firmware implements a simple text-based protocol over serial communication at 115200 baud.
 
 ### Commands Received from MCP Server
 
@@ -35,7 +44,7 @@ The micro:bit listens for these commands from the MCP server:
 The micro:bit sends these response formats back to the MCP server:
 
 - **`STATUS|<message>|<timestamp>`** - General status updates
-  - Example: `STATUS|ready|1234` when firmware starts
+  - Example: `STATUS|ready:v2|1234` when firmware starts on micro:bit v2
   - Example: `STATUS|displayed:Hello|5678` after displaying a message
 
 - **`TEMP|<celsius>|<timestamp>`** - Temperature reading response

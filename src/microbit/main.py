@@ -1,7 +1,16 @@
 # type: ignore
-# main.py for micro:bit
+# main.py for micro:bit (v1 and v2 compatible)
 from microbit import *
 import music
+import sys
+
+# Detect micro:bit version for optimized serial handling
+try:
+    # Check if uart.any() exists (v1 specific)
+    uart.any()
+    MICROBIT_VERSION = 1
+except AttributeError:
+    MICROBIT_VERSION = 2
 
 def send_status_event(message):
     """Send status event"""
@@ -63,6 +72,27 @@ def send_button_timeout():
     event_str = "BUTTON_TIMEOUT|" + wait_button_type + "|" + str(wait_timeout)
     print(event_str)
 
+def read_serial_input():
+    """Read input from serial - compatible with both v1 and v2"""
+    if MICROBIT_VERSION == 1:
+        # v1 uses uart interface
+        if uart.any():
+            return uart.read(1).decode('utf-8', 'ignore')
+    else:
+        # v2 uses sys.stdin - non-blocking read
+        try:
+            import select
+            if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                return sys.stdin.read(1)
+        except ImportError:
+            # Fallback if select is not available
+            try:
+                # This may block briefly on v2
+                return sys.stdin.read(1) if sys.stdin.readable() else None
+            except:
+                return None
+    return None
+
 # Global variables for button waiting
 waiting_for_button = False
 wait_button_type = ""
@@ -77,22 +107,47 @@ button_b_was_pressed = False
 display.show(Image.HAPPY)
 sleep(1000)
 display.clear()
-send_status_event("ready")
+send_status_event("ready:v" + str(MICROBIT_VERSION))
 
 # Main loop
 input_buffer = ""
 
 while True:
-    # Handle commands
-    if uart.any():
-        char = uart.read(1)
-        if char:
-            if char == b'\n':
-                if input_buffer:
-                    process_command(input_buffer.strip())
-                    input_buffer = ""
-            else:
-                input_buffer += char.decode('utf-8', 'ignore')
+    # Handle commands - version-specific input handling
+    try:
+        if MICROBIT_VERSION == 1:
+            # v1 implementation using uart
+            if uart.any():
+                char = uart.read(1)
+                if char:
+                    if char == b'\n':
+                        if input_buffer:
+                            process_command(input_buffer.strip())
+                            input_buffer = ""
+                    else:
+                        input_buffer += char.decode('utf-8', 'ignore')
+        else:
+            # v2 implementation using sys.stdin
+            # Try line-based reading for better reliability
+            try:
+                # Check if input is available without blocking
+                import select
+                if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                    line = sys.stdin.readline().strip()
+                    if line:
+                        process_command(line)
+            except ImportError:
+                # Fallback for systems without select
+                try:
+                    # This approach may block briefly
+                    if sys.stdin.readable():
+                        line = sys.stdin.readline().strip()
+                        if line:
+                            process_command(line)
+                except:
+                    pass  # Skip if stdin not available
+    except Exception as e:
+        send_status_event("input_error:" + str(e))
     
     # Button monitoring when waiting for button press
     if waiting_for_button:
