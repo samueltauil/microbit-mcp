@@ -72,26 +72,48 @@ def send_button_timeout():
     event_str = "BUTTON_TIMEOUT|" + wait_button_type + "|" + str(wait_timeout)
     print(event_str)
 
-def read_serial_input():
-    """Read input from serial - compatible with both v1 and v2"""
-    if MICROBIT_VERSION == 1:
-        # v1 uses uart interface
-        if uart.any():
-            return uart.read(1).decode('utf-8', 'ignore')
-    else:
-        # v2 uses sys.stdin - non-blocking read
-        try:
-            import select
-            if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-                return sys.stdin.read(1)
-        except ImportError:
-            # Fallback if select is not available
-            try:
-                # This may block briefly on v2
-                return sys.stdin.read(1) if sys.stdin.readable() else None
-            except:
-                return None
+def read_serial_input_v1():
+    """Read input from serial for micro:bit v1 using UART"""
+    if uart.any():
+        char = uart.read(1)
+        if char:
+            return char.decode('utf-8', 'ignore')
     return None
+
+def read_serial_input_v2_select():
+    """Read input from serial for micro:bit v2 using select (non-blocking)"""
+    import select
+    if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+        return sys.stdin.readline().strip()
+    return None
+
+def read_serial_input_v2_fallback():
+    """Read input from serial for micro:bit v2 using fallback method"""
+    try:
+        if sys.stdin.readable():
+            return sys.stdin.readline().strip()
+    except:
+        pass
+    return None
+
+def handle_command_v1(input_buffer, command_handler):
+    """Handle command input for micro:bit v1 (character-based buffering)"""
+    char = read_serial_input_v1()
+    if char:
+        if char == '\n':
+            if input_buffer:
+                command_handler(input_buffer.strip())
+                return ""  # Clear buffer
+        else:
+            input_buffer += char
+    return input_buffer
+
+def handle_command_v2(input_buffer, command_handler):
+    """Handle command input for micro:bit v2 (line-based)"""
+    line = input_handler()
+    if line:
+        command_handler(line)
+    return input_buffer  # Buffer not used for v2
 
 # Global variables for button waiting
 waiting_for_button = False
@@ -103,6 +125,21 @@ wait_timeout = 0
 button_a_was_pressed = False
 button_b_was_pressed = False
 
+# Initialize version-specific handlers (polymorphism)
+if MICROBIT_VERSION == 1:
+    command_handler = handle_command_v1
+    input_handler = read_serial_input_v1  # Not used for v1, but kept for consistency
+else:
+    # v2 - try to use select, fallback to blocking method
+    try:
+        import select
+        input_handler = read_serial_input_v2_select
+        send_status_event("v2_mode:select")
+    except ImportError:
+        input_handler = read_serial_input_v2_fallback
+        send_status_event("v2_mode:fallback")
+    command_handler = handle_command_v2
+
 # Startup
 display.show(Image.HAPPY)
 sleep(1000)
@@ -113,39 +150,9 @@ send_status_event("ready:v" + str(MICROBIT_VERSION))
 input_buffer = ""
 
 while True:
-    # Handle commands - version-specific input handling
+    # Handle commands using polymorphic handler
     try:
-        if MICROBIT_VERSION == 1:
-            # v1 implementation using uart
-            if uart.any():
-                char = uart.read(1)
-                if char:
-                    if char == b'\n':
-                        if input_buffer:
-                            process_command(input_buffer.strip())
-                            input_buffer = ""
-                    else:
-                        input_buffer += char.decode('utf-8', 'ignore')
-        else:
-            # v2 implementation using sys.stdin
-            # Try line-based reading for better reliability
-            try:
-                # Check if input is available without blocking
-                import select
-                if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-                    line = sys.stdin.readline().strip()
-                    if line:
-                        process_command(line)
-            except ImportError:
-                # Fallback for systems without select
-                try:
-                    # This approach may block briefly
-                    if sys.stdin.readable():
-                        line = sys.stdin.readline().strip()
-                        if line:
-                            process_command(line)
-                except:
-                    pass  # Skip if stdin not available
+        input_buffer = command_handler(input_buffer, process_command)
     except Exception as e:
         send_status_event("input_error:" + str(e))
     
